@@ -1,0 +1,365 @@
+---
+title: "Final"
+author: "Nora"
+subtitle: MGSC 310 Problem Set Template
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+---
+
+```{r setup, include=FALSE}
+
+# Please leave this code chunk as is. It makes some slight formatting changes to alter the output to be more aesthetically pleasing. 
+
+library(knitr)
+
+# Change the number in set seed to your own favorite number
+set.seed(1818)
+options(width=70)
+options(scipen=99)
+
+
+# this sets text outputted in code chunks to small
+opts_chunk$set(tidy.opts=list(width.wrap=50),tidy=TRUE, size = "vsmall")  
+opts_chunk$set(message = FALSE,                                          
+               warning = FALSE,
+               # "caching" stores objects in code chunks and only rewrites if you change things
+               cache = FALSE,                               
+               # automatically downloads dependency files
+               autodep = TRUE,
+               # 
+               cache.comments = FALSE,
+               # 
+               collapse = TRUE,
+               # change fig.width and fig.height to change the code height and width by default
+               fig.width = 5.5,  
+               fig.height = 4.5,
+               fig.align='center')
+
+
+```
+
+```{r setup-2}
+
+# Always print this out before your assignment
+sessionInfo()
+getwd()
+
+```
+
+
+<!-- ### start answering your problem set here -->
+<!-- You may export your homework in either html or pdf, with the former usually being easier. 
+     To export or compile your Rmd file: click above on 'Knit' then 'Knit to HTML' -->
+<!-- Be sure to submit both your .Rmd file and the compiled .html or .pdf file for full credit -->
+
+
+```{r setup-3}
+
+# load all your libraries in this chunk 
+library('tidyverse')
+library('forcats')
+library('dplyr')
+library('ggplot2')
+library('rsample')
+library('glmnet')
+library('glmnetUtils')
+library('sjPlot')
+library('ggcorrplot')
+library('here')
+library('broom')
+# note, do not run install.packages() inside a code chunk. install them in the console outside of a code chunk. 
+
+```
+
+## Cleaning the Data Set
+
+
+```{r}
+
+#changing dbl variables to integers and dropping NA values in the variables I am using
+
+
+load(file = '37188-0001-Data.rda')
+
+#rename(df, republican_rating = W2Q75,
+      # democratic_rating = W2Q76, gender = W2PPGENDER,
+       #house_hold_size = W2PPHHSIZE, citizen_status =W2CITIZENSHIP_IMPUTE,
+      # work_status = W2PPWORK, netincome_cat = W2PPINCIMP, race = W2PPRACEM,
+      # age = W2PPAGE, education_level = W2PPEDUCAT, network_access = W2PPNET,
+       #gender = W2PPGENDER, state = W2PPSTATEN)
+
+df <- da37188.0001 %>% 
+  rename(republican_rating = W2Q75,
+       democratic_rating = W2Q76, gender = W2PPGENDER,
+       house_hold_size = W2PPHHSIZE,
+       citizen_status = W2CITIZENSHIP_IMPUTE, 
+       work_status = W2PPWORK, netincome_cat = W2PPINCIMP,
+       race = W2PPRACEM,age = W2PPAGE, 
+       education_level = W2PPEDUCAT, network_access = W2PPNET,
+      region = W2PPREG4) %>%
+  drop_na(republican_rating,democratic_rating,age, education_level,
+          gender,house_hold_size, citizen_status, work_status,
+          network_access,netincome_cat, region, race) %>%
+  mutate(republican_rating = as.integer(republican_rating),
+         democratic_rating = as.integer(democratic_rating),
+         age = as.integer(age))
+
+
+
+
+```
+
+## Model 1: Linear Regression
+
+Republican Rating 
+
+```{r}
+
+set.seed(9)
+df_split <- initial_split(df, prop = 0.75)
+dftrain <- training(df_split)
+dftest <- testing(df_split)
+
+linear_rep <- lm(republican_rating ~ age + education_level +
+                    gender + house_hold_size + citizen_status +
+                    work_status + network_access + netincome_cat +
+                    region + race,
+                  data = dftrain)
+
+#summary(linear_mod1)$coefficients
+#tab_model(linear_mod1)
+#coefplot(linear_mod1)
+```
+
+Democratic Rating
+
+```{r}
+
+linear_dem <- lm(democratic_rating ~ age + education_level +
+                    gender + house_hold_size + citizen_status +
+                    work_status + network_access + netincome_cat +
+                    region + race,
+                  data = dftrain)
+
+#summary(linear_mod2)$coefficients
+
+#tab_model(linear_mod2)
+#coefplot(linear_mod2)
+```
+
+Linear - RMSE & MAE
+
+```{r}
+
+preds_train3 <- predict(linear_rep, newdata = dftrain)
+
+preds_test3 <- predict(linear_rep, newdata = dftest)
+
+get_rmse(dftrain$republican_rating, preds_train3)
+get_rmse(dftest$republican_rating, preds_test3)
+
+get_mae(dftrain$republican_rating, preds_train3)
+get_mae(dftest$republican_rating, preds_test3)
+
+preds_train4 <- predict(linear_dem, newdata = dftrain)
+
+preds_test4 <- predict(linear_dem, newdata = dftest)
+
+get_rmse(dftrain$democratic_rating, preds_train4)
+get_rmse(dftest$democratic_rating, preds_test4)
+
+get_mae(dftrain$democratic_rating, preds_train4)
+get_mae(dftest$democratic_rating, preds_test4)
+
+```
+
+coef plot
+
+```{r}
+library('dotwhisker')
+
+dwplot(list(linear_rep,linear_dem)) +
+  theme_minimal() +
+  scale_color_manual(values = c('blue', 'red'),
+                     name = 'Parties',
+                     labels = c('Republican', 'Democratic')) +
+  theme(text = element_text(size=7),
+        legend.position = 'top')
+```
+
+## Elastic Net
+
+Republican Rating
+
+
+```{r}
+
+enet_mod1 <- cva.glmnet(W2Q75_int ~ age_int + W2PPEDUCAT +
+                         W2PPGENDER + W2PPHHSIZE +
+                         W2CITIZENSHIP_IMPUTE +
+                         W2PPWORK + W2PPNET + W2PPINCIMP +
+                         W2PPREG4 + W2PPRACEM,
+                       data = dftrain,
+                       alpha = seq(0,1, by = 0.05))
+
+
+# now enet_mod holds a list with all of the sub models, 
+# each with alpha = whatever sequence the model was estimated with
+
+minlossplot(enet_mod1, 
+            cv.type = "min")
+
+# Use this function to find the best alpha
+get_alpha <- function(fit) {
+  alpha <- fit$alpha
+  error <- sapply(fit$modlist, 
+                  function(mod) {min(mod$cvm)})
+  alpha[which.min(error)]
+}
+
+# Get all parameters.
+get_model_params <- function(fit) {
+  alpha <- fit$alpha
+  lambdaMin <- sapply(fit$modlist, `[[`, "lambda.min")
+  lambdaSE <- sapply(fit$modlist, `[[`, "lambda.1se")
+  error <- sapply(fit$modlist, function(mod) {min(mod$cvm)})
+  best <- which.min(error)
+  data.frame(alpha = alpha[best], lambdaMin = lambdaMin[best],
+             lambdaSE = lambdaSE[best], eror = error[best])
+}
+
+# extract the best alpha value and model parameters
+best_alpha <- get_alpha(enet_mod1)
+print(best_alpha)
+get_model_params(enet_mod1)
+
+```
+
+
+
+Democratic Rating
+
+
+```{r}
+
+enet_mod2 <- cva.glmnet(W2Q76_int ~ age_int + W2PPEDUCAT +
+                         W2PPGENDER + W2PPHHSIZE +
+                         W2CITIZENSHIP_IMPUTE +
+                         W2PPWORK + W2PPNET + W2PPINCIMP +
+                         W2PPREG4 + W2PPRACEM,
+                       data = dftrain,
+                       alpha = seq(0,1, by = 0.05))
+
+plot(enet_mod2)
+
+# now enet_mod holds a list with all of the sub models, 
+# each with alpha = whatever sequence the model was estimated with
+
+minlossplot(enet_mod2, 
+            cv.type = "min")
+
+
+
+# Use this function to find the best alpha
+get_alpha <- function(fit) {
+  alpha <- fit$alpha
+  error <- sapply(fit$modlist, 
+                  function(mod) {min(mod$cvm)})
+  alpha[which.min(error)]
+}
+
+# Get all parameters.
+get_model_params <- function(fit) {
+  alpha <- fit$alpha
+  lambdaMin <- sapply(fit$modlist, `[[`, "lambda.min")
+  lambdaSE <- sapply(fit$modlist, `[[`, "lambda.1se")
+  error <- sapply(fit$modlist, function(mod) {min(mod$cvm)})
+  best <- which.min(error)
+  data.frame(alpha = alpha[best], lambdaMin = lambdaMin[best],
+             lambdaSE = lambdaSE[best], error = error[best])
+}
+
+# extract the best alpha value and model parameters
+best_alpha <- get_alpha(enet_mod2)
+print(best_alpha)
+get_model_params(enet_mod2)
+
+
+```
+## Dimension Reduction
+
+Republican Rating
+
+```{r}
+
+ridge_mod1 <- cv.glmnet(W2Q75_int ~ age_int + W2PPEDUCAT +
+                         W2PPGENDER + W2PPHHSIZE +
+                         W2CITIZENSHIP_IMPUTE +
+                         W2PPWORK + W2PPNET + W2PPINCIMP +
+                         W2PPREG4 + W2PPRACEM,
+                       data = dftrain,
+                        alpha = 0.05)
+ridge_mod1
+plot(ridge_mod1)
+coef(ridge_mod1, s = 'lambda.1se')
+#coefpath(ridge_mod1)
+
+
+
+```
+
+
+
+Democratic Rating
+
+```{r}
+
+lasso_mod1 <- cv.glmnet(W2Q76_int ~ age_int + W2PPEDUCAT +
+                         W2PPGENDER + W2PPHHSIZE +
+                         W2CITIZENSHIP_IMPUTE +
+                         W2PPWORK + W2PPNET + W2PPINCIMP +
+                         W2PPREG4 + W2PPRACEM,
+                       data = dftrain,
+                        alpha = 1)
+lasso_mod1
+plot(lasso_mod1)
+coef(lasso_mod1, s = 'lambda.1se')
+#coefpath(lasso_mod1)
+
+
+
+```
+
+
+Dimension Reduction - RMSE & MAE
+
+```{r}
+
+preds_train1 <- predict(ridge_mod1, newdata = dftrain)
+
+preds_test1 <- predict(ridge_mod1, newdata = dftest)
+
+get_rmse(dftrain$W2Q75, preds_train1)
+get_rmse(dftest$W2Q75, preds_test1)
+
+get_mae(dftrain$W2Q75, preds_train1)
+get_mae(dftest$W2Q75, preds_test1)
+
+preds_train2 <- predict(lasso_mod1, newdata = dftrain)
+
+preds_test2 <- predict(lasso_mod1, newdata = dftest)
+
+get_rmse(dftrain$W2Q76, preds_train2)
+get_rmse(dftest$W2Q76, preds_test2)
+
+get_mae(dftrain$W2Q76, preds_train2)
+get_mae(dftest$W2Q76, preds_test2)
+
+
+
+```
+
+
+
