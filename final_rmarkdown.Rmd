@@ -10,11 +10,11 @@ output:
 
 ```{r setup, include=FALSE}
 
-# Please leave this code chunk as is. It makes some slight formatting changes to alter the output to be more aesthetically pleasing. 
+# Makes some slight formatting changes to alter the output to be more aesthetically pleasing. 
 
 library(knitr)
 
-# Change the number in set seed to your own favorite number
+
 set.seed(1818)
 options(width=70)
 options(scipen=99)
@@ -42,22 +42,15 @@ opts_chunk$set(message = FALSE,
 
 ```{r setup-2}
 
-# Always print this out before your assignment
 sessionInfo()
 getwd()
 
 ```
 
 
-<!-- ### start answering your problem set here -->
-<!-- You may export your homework in either html or pdf, with the former usually being easier. 
-     To export or compile your Rmd file: click above on 'Knit' then 'Knit to HTML' -->
-<!-- Be sure to submit both your .Rmd file and the compiled .html or .pdf file for full credit -->
-
-
 ```{r setup-3}
 
-# load all your libraries in this chunk 
+# load libraries
 library('tidyverse')
 library('forcats')
 library('dplyr')
@@ -69,7 +62,6 @@ library('sjPlot')
 library('ggcorrplot')
 library('here')
 library('broom')
-# note, do not run install.packages() inside a code chunk. install them in the console outside of a code chunk. 
 
 ```
 
